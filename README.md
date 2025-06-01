@@ -8,7 +8,7 @@
   .\.venv\Scripts\Activate.ps1
   ```
 
-- **프로젝트 템플릿 기반 세팅**  
+- **프로젝트 템플릿 기반 세팅(git clone시 불필요)**  
   ```bash
   pip install -U "langgraph-cli[inmem]"
   langgraph new . --template retrieval-agent-python
