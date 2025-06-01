@@ -1,17 +1,79 @@
 # ku-2501-nlp-agent
 
-## 프로젝트 구성
+## 📡 프로젝트 구성
 ### retrieval-agent
-- Python 가상환경 활성화 
-    - .\.venv\Scripts\Activate.ps1
-- 프로젝트 템플릿 기반 세팅
-    - pip install -U "langgraph-cli[inmem]"
-    - langgraph new . --template retrieval-agent-python
-- 의존성 설치 (pyproject.toml)
-    - pip install -e . 
-- langgraph studio 
-    -실행: langgraph dev
-    -중지: Ctrl + C
+
+- **Python 가상환경 활성화**  
+  ```powershell
+  .\.venv\Scripts\Activate.ps1
+  ```
+
+- **프로젝트 템플릿 기반 세팅**  
+  ```bash
+  pip install -U "langgraph-cli[inmem]"
+  langgraph new . --template retrieval-agent-python
+  ```
+
+- **의존성 설치 (pyproject.toml 기반)**  
+  ```bash
+  pip install -e .
+  ```
+
+- **LangGraph Studio 사용**
+  - 실행: `langgraph dev`
+  - 중지: `Ctrl + C`
+
+---
+
+### 📚 참고 정보
+
+[🔗 reference.md](https://github.com/juliejoy10/ku-2501-nlp-agent/blob/main/docs/reference.md)
+
+---
+
+### 📦 RAG 용 데이터셋
+
+[🔗 data 폴더](https://github.com/juliejoy10/ku-2501-nlp-agent/blob/main/data)
+
+## 📁 프로젝트 디렉터리 구조
+```
+.
+├── data
+│   ├── embedding_apply
+│   │   └── 2024주택청약FAQ_202405.pdf
+│   └── embedding_policy
+│       ├── 24년 국토의 계획 및 이용에 관한 연차보고서_241028.pdf
+│       ├── 2040_seoul_plan.pdf
+│       ├── 제5차 국토종합계획실천계획(2021-2025)_202007.pdf
+│       └── 제5차국토종합계획_2020_2040_201912.pdf
+├── docs
+│   ├── meeting-notes
+│   ├── pricing.md
+│   └── reference.md
+├── retrieval_graph.egg-info
+├── src
+│   └── retrieval_graph
+│       ├── __pycache__
+│       ├── __init__.py
+│       ├── configuration.py
+│       ├── graph.py
+│       ├── index_graph.py
+│       ├── prompts.py
+│       ├── retrieval.py
+│       ├── state.py
+│       └── utils.py
+├── static
+├── tests
+├── .codespellignore
+├── .env
+├── .env.example
+├── .gitignore
+├── langgraph.json
+├── LICENSE
+├── Makefile
+├── pyproject.toml
+└── README.md
+```
 
 # LangGraph Retrieval Chat Bot Template
 
