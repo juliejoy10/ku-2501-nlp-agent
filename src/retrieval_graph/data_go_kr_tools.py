@@ -126,5 +126,5 @@ agent = initialize_agent(
     verbose = True,
 )
 
-result = agent.invoke("경기 지역에 분양 진행중인 아파트 현황을 전부 확인하고 단지명과 분양공고 URL을 순서대로 정리해줘.")
+result = agent.invoke("경기 지역에 분양 진행중인 아파트 현황을 전부 확인하고 분양정보들을 순서대로, 상세하게 보고서 형태로 정리해줘.")
 pass
