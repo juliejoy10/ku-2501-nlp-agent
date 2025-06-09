@@ -13,10 +13,9 @@
   pip install -U "langgraph-cli[inmem]"
   langgraph new . --template retrieval-agent-python
   ```
-- 참고
-- https://github.com/langchain-ai/react-agent
-- https://github.com/langchain-ai/retrieval-agent-template
-
+- 참고 
+  https://github.com/langchain-ai/react-agent
+  https://github.com/langchain-ai/retrieval-agent-template
 
 - **의존성 설치 (pyproject.toml 기반)**  
   ```bash
