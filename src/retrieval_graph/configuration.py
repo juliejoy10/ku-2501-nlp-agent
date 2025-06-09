@@ -80,7 +80,7 @@ class Configuration(IndexConfiguration):
     )
 
     response_model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
-        default="anthropic/claude-3-5-sonnet-20240620",
+        default="openai:gpt-4o", #TODO 업데이트 - 기존 "anthropic/claude-3-5-sonnet-20240620",
         metadata={
             "description": "The language model used for generating responses. Should be in the form: provider/model-name."
         },
@@ -94,7 +94,7 @@ class Configuration(IndexConfiguration):
     )
 
     query_model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
-        default="anthropic/claude-3-haiku-20240307",
+        default="openai:gpt-4o", #TODO 업데이트 - 기존 "anthropic/claude-3-haiku-20240307",
         metadata={
             "description": "The language model used for processing and refining queries. Should be in the form: provider/model-name."
         },
