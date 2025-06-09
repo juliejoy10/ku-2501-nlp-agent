@@ -23,10 +23,14 @@
   ```
 
 - **LangGraph Studio 사용**
-  - 실행: `langgraph dev`
+  - 실행: `langgraph dev` 또는 `langgraph dev --allow-blocking`
   - 중지: `Ctrl + C`
 
----
+
+- **의존성 버전 관리**
+  ```bash
+  pip install pydantic==2.8.2
+  ```
 
 ### 📚 참고 정보
 
