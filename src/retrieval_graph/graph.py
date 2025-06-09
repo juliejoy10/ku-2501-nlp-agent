@@ -83,28 +83,23 @@ async def generate_query(
         }
 
 
-async def retrieve_application_policy(
+async def retrieve(
     state: State, *, config: RunnableConfig
 ) -> dict[str, list[Document]]:
-    """Retrieve application policy documents."""
-    with retrieval.make_retriever(config) as retriever:
-        response = await retriever.ainvoke(state.queries[-1], config)
-        return {"retrieved_docs": response}
+    """Retrieve documents based on the latest query in the state.
 
+    This function takes the current state and configuration, uses the latest query
+    from the state to retrieve relevant documents using the retriever, and returns
+    the retrieved documents.
 
-async def retrieve_real_estate_market_value(
-    state: State, *, config: RunnableConfig
-) -> dict[str, list[Document]]:
-    """Retrieve real estate market value documents."""
-    with retrieval.make_retriever(config) as retriever:
-        response = await retriever.ainvoke(state.queries[-1], config)
-        return {"retrieved_docs": response}
+    Args:
+        state (State): The current state containing queries and the retriever.
+        config (RunnableConfig | None, optional): Configuration for the retrieval process.
 
-
-async def register_calendar_event(
-    state: State, *, config: RunnableConfig
-) -> dict[str, list[Document]]:
-    """Register calendar event and retrieve related documents."""
+    Returns:
+        dict[str, list[Document]]: A dictionary with a single key "retrieved_docs"
+        containing a list of retrieved Document objects.
+    """
     with retrieval.make_retriever(config) as retriever:
         response = await retriever.ainvoke(state.queries[-1], config)
         return {"retrieved_docs": response}
@@ -143,20 +138,12 @@ async def respond(
 
 builder = StateGraph(State, input=InputState, config_schema=Configuration)
 
-#TODO 실제 함수 개발 후 작업 예정
-
 builder.add_node(generate_query)
-builder.add_node(retrieve_application_policy)
-builder.add_node(retrieve_real_estate_market_value)
-builder.add_node(register_calendar_event)
+builder.add_node(retrieve)
 builder.add_node(respond)
-
 builder.add_edge("__start__", "generate_query")
-builder.add_edge("generate_query", "retrieve_application_policy")
-builder.add_edge("retrieve_application_policy", "retrieve_real_estate_market_value")
-builder.add_edge("retrieve_real_estate_market_value", "register_calendar_event")
-builder.add_edge("register_calendar_event", "respond")
-builder.add_edge("respond", "__end__")
+builder.add_edge("generate_query", "retrieve")
+builder.add_edge("retrieve", "respond")
 
 # Finally, we compile it!
 # This compiles it into a graph you can invoke and deploy.
