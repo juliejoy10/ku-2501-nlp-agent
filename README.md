@@ -8,11 +8,15 @@
   .\.venv\Scripts\Activate.ps1
   ```
 
-- **프로젝트 템플릿 기반 세팅(git clone시 불필요)**  
-  ```bash
+- **프로젝트 템플릿 기반 세팅(git clone시 불필요)**
+   ```bash
   pip install -U "langgraph-cli[inmem]"
   langgraph new . --template retrieval-agent-python
   ```
+- 참고
+- https://github.com/langchain-ai/react-agent
+- https://github.com/langchain-ai/retrieval-agent-template
+
 
 - **의존성 설치 (pyproject.toml 기반)**  
   ```bash
