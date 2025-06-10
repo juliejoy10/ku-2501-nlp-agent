@@ -2,7 +2,8 @@
   "dependencies": ["."],
   "graphs": {
     "indexer": "./src/retrieval_graph/index_graph.py:graph",
-    "retrieval_graph": "./src/retrieval_graph/graph.py:graph"
+    "retrieval_graph": "./src/retrieval_graph/graph.py:graph",
+    "retrieval_graph_valuation": "./src/retrieval_graph/graph_valuation.py:graph_valuation"
   },
   "env": ".env"
 }

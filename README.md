@@ -32,6 +32,13 @@
   pip install pydantic==2.8.2
   ```
 
+- **Graph 추가가 관리**
+  ```bash
+  # graph.py 추가 후 아래 파일 업데이트
+  langgraph.json
+  src\retrieval_graph\__init__.py
+  ```
+
 ### 📚 참고 정보
 
 [🔗 reference.md](https://github.com/juliejoy10/ku-2501-nlp-agent/blob/main/docs/reference.md)

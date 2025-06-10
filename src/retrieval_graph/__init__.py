@@ -28,6 +28,7 @@ and individual component documentation within the retrieval_graph package.
 """  # noqa
 
 from retrieval_graph.graph import graph
+from retrieval_graph.graph_valuation import graph_valuation
 from retrieval_graph.index_graph import graph as index_graph
 
-__all__ = ["graph", "index_graph"]
+__all__ = ["graph", "index_graph", "graph_valuation"]
