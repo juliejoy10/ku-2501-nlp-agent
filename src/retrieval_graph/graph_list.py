@@ -8,12 +8,13 @@ relevant documents, and formulating responses.
 
 from datetime import datetime, timezone, timedelta
 import requests
+import json
 from bs4 import BeautifulSoup
 import os
 from typing import cast
 
 from langchain_core.documents import Document
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.runnables import RunnableConfig
@@ -161,30 +162,22 @@ def execute_tools(
     Agent가 요청한 Tool을 실제로 수행하고 그 결과를 State에 저장합니다.
     """
     last_message = state.messages[-1]
-    new_messages = []
 
-    if isinstance(last_message, AgentAction):
-        tool_name = last_message.tool
-        tool_args = last_message.tool_input
-        print(f"Executing Tool: {tool_name} with args: {tool_args}")
-
+    outputs = []
+    for tool_call in last_message.tool_calls:
         # 정의된 Tool 중에서 해당 Tool을 찾아 실행
         for tool in tools:
-            if tool.name == tool_name:
-                try:
-                    result = tool.func(**tool_args)
-                    new_messages.append(f"Tool '{tool_name}' execution successful. Result: {result}")
-                    print(f"Tool result: {result}")
-                    return {"messages": new_messages, "tool_output": result}
-                except Exception as e:
-                    new_messages.append(f"Tool '{tool_name}' execution failed: {e}")
-                    print(f"Tool execution failed: {e}")
-                    return {"messages": new_messages}
-        new_messages.append(f"Tool '{tool_name}' not found.")
-        return {"messages": new_messages}
-    else:
-        # Tool Action이 아닌 경우 (예: 최종 응답)
-        return {"messages": new_messages}
+            if tool.name == tool_call['name']:
+                result = tool.invoke(tool_call['args'])
+                print(f"Tool result: {result}")
+                outputs.append(
+                    ToolMessage(
+                        content=json.dumps(result),
+                        name=tool_call['name'],
+                        tool_call_id=tool_call['id']
+                    )
+                )
+    return {"messages": outputs}
 
 
 # Define a new graph (It's just a pipe)
@@ -198,7 +191,7 @@ builder.add_edge("__start__", "run_agent")
 
 def decide_next_step(state: State):
     last_message = state.messages[-1]
-    if isinstance(last_message, AgentAction):
+    if hasattr(last_message, 'tool_calls') and len(last_message.tool_calls) > 0:
         # Tool Calling이 감지되면 tools 노드로 이동
         return "execute_tools"
     else:
