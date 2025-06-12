@@ -27,6 +27,7 @@ from retrieval_graph.utils import format_docs, get_message_text, load_chat_model
 
 from langchain_core.tools import Tool, tool
 from langchain_core.agents import AgentAction
+from retrieval_graph.constants import AREA_CODE
 
 @tool
 def getAPTList(city: str) -> list:
@@ -55,9 +56,17 @@ def getAPTList(city: str) -> list:
         if apt_info['RCEPT_ENDDE'] < today:
             continue
 
+        area    = apt_info['HSSPLY_ADRES'].split()
+        area_cd = None
+        if ' '.join(area[:2]) in AREA_CODE.keys():
+            area_cd = AREA_CODE.get(' '.join(area[:2]))
+        elif ' '.join(area[:3]) in AREA_CODE.keys():
+            area_cd = AREA_CODE.get(' '.join(area[:3]))
+
         item = {
             '단지명'                     : apt_info['HOUSE_NM'],
             '공급위치'                   : apt_info['HSSPLY_ADRES'],
+            '법정동코드'                 : area_cd,
             '공급규모'                   : apt_info['TOT_SUPLY_HSHLDCO'],
             '문의처'                     : apt_info['MDHS_TELNO'],
             '모집공고일'                 : apt_info['RCRIT_PBLANC_DE'],
