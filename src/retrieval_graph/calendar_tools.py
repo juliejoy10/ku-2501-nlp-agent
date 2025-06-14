@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 
 from langgraph.graph import StateGraph, END
 from langchain_core.tools import Tool, tool, StructuredTool
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import ToolMessage, AIMessage
 from google.auth.transport.requests import Request
 from langchain_core.runnables import RunnableConfig
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -104,17 +104,32 @@ def run_agent(
     llm            = load_chat_model(configuration.response_model)
     llm_with_tools = llm.bind_tools(tools)
 
-    # 프롬프트 템플릿 생성
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", prompts.CALENDAR_PROMPT),
-        ("user", "{user_input}")
-    ])
+    # 마지막 메시지가 ToolMessage인지 확인
+    last_message = state.messages[-1] if state.messages else None
     
-    user_input = state.messages[-1].content if state.messages else ""
-    messages = prompt.format_messages(user_input=user_input)
-    print(messages)
-    response = llm_with_tools.invoke(messages)
-    return {"messages": [response]}
+    if isinstance(last_message, ToolMessage):
+        # Tool 실행 결과가 있으면 캘린더 등록 완료 메시지 생성
+        tool_result = last_message.content
+        final_response = f"""✅ 캘린더 등록이 완료되었습니다!
+
+{tool_result}
+
+청약 일정이 Google Calendar에 성공적으로 등록되었습니다. 
+캘린더에서 확인하실 수 있습니다."""
+        
+        return {"messages": [AIMessage(content=final_response)]}
+    else:
+        # 일반적인 Tool Calling 처리
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", prompts.CALENDAR_PROMPT),
+            ("user", "{user_input}")
+        ])
+        
+        user_input = state.messages[-1].content if state.messages else ""
+        messages = prompt.format_messages(user_input=user_input)
+        print(messages)
+        response = llm_with_tools.invoke(messages)
+        return {"messages": [response]}
 
 
 def execute_tools(
@@ -131,15 +146,33 @@ def execute_tools(
         # 정의된 Tool 중에서 해당 Tool을 찾아 실행
         for tool in tools:
             if tool.name == tool_call['name']:
-                result = tool.invoke(tool_call['args'])
-                print(f"Tool result: {result}")
-                outputs.append(
-                    ToolMessage(
-                        content=json.dumps(result),
-                        name=tool_call['name'],
-                        tool_call_id=tool_call['id']
+                print("Tool args:", tool_call['args'])
+                
+                try:
+                    # Tool 실행
+                    result = tool.invoke(tool_call['args'])
+                    print(f"Tool result: {result}")
+                    
+                    # 성공적인 결과를 ToolMessage로 반환
+                    outputs.append(
+                        ToolMessage(
+                            content=result,  # JSON.dumps 제거하여 문자열 그대로 반환
+                            name=tool_call['name'],
+                            tool_call_id=tool_call['id']
+                        )
                     )
-                )
+                except Exception as e:
+                    print(f"Tool execution error: {e}")
+                    # 에러 발생시 에러 메시지 반환
+                    error_result = f"Error executing tool: {str(e)}"
+                    outputs.append(
+                        ToolMessage(
+                            content=error_result,
+                            name=tool_call['name'],
+                            tool_call_id=tool_call['id']
+                        )
+                    )
+    
     return {"messages": outputs}
 
 
@@ -178,7 +211,7 @@ graph_list = builder.compile(
     interrupt_before=[],  # if you want to update the state before calling the tools
     interrupt_after=[],
 )
-graph_list.name = "CalendarApi"
+graph_list.name = "CalendarGraph"
 
 
 
