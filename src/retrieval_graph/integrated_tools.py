@@ -2,6 +2,8 @@ import json
 import os.path
 import pickle
 from datetime import datetime
+from functools import lru_cache
+from typing import Dict, Any
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -40,9 +42,66 @@ integrated_tools = [
     )
 ]
 
+# 도구 매핑 딕셔너리 (효율적인 도구 검색을 위해)
+TOOL_MAP = {
+    tool.name: tool for tool in integrated_tools
+}
+
+# 프롬프트 캐싱 (성능 향상)
+@lru_cache(maxsize=4)
+def get_prompt_template(prompt_type: str) -> ChatPromptTemplate:
+    """프롬프트 템플릿을 캐싱하여 재사용"""
+    prompt_map = {
+        "intent": ChatPromptTemplate.from_messages([
+            ("system", prompts.INTENT_ANALYSIS_PROMPT),
+            ("user", "{user_input}")
+        ]),
+        "react": ChatPromptTemplate.from_messages([
+            ("system", prompts.REACT_INTEGRATED_PROMPT),
+            ("user", "{user_input}")
+        ]),
+        "report": ChatPromptTemplate.from_messages([
+            ("system", prompts.APARTMENT_REPORT_PROMPT),
+            ("user", "{user_input}")
+        ]),
+        "calendar": ChatPromptTemplate.from_messages([
+            ("system", prompts.CALENDAR_FROM_REPORT_PROMPT),
+            ("user", "{user_input}")
+        ])
+    }
+    return prompt_map.get(prompt_type, prompt_map["react"])
+
+# 응답 메시지 템플릿
+RESPONSE_TEMPLATES = {
+    "report_success": """분양공고 분석 리포트가 성공적으로 생성되었습니다.
+
+리포트 생성이 완료되었습니다. 
+캘린더에 청약 일정을 등록하시겠습니까? """,
+    
+    "calendar_success": """✅ 캘린더 등록이 완료되었습니다!
+
+청약 일정이 Google Calendar에 성공적으로 등록되었습니다. 
+캘린더에서 확인하실 수 있습니다."""
+}
+
+def create_response_message(tool_name: str, tool_result: str) -> Dict[str, Any]:
+    """도구 실행 결과에 따른 응답 메시지 생성"""
+    if tool_name == "create_apartment_report_tool":
+        return {
+            "messages": [AIMessage(content=RESPONSE_TEMPLATES["report_success"].format(tool_result=tool_result))],
+            "generated_report": tool_result
+        }
+    elif tool_name == "create_event_tool":
+        return {
+            "messages": [AIMessage(content=RESPONSE_TEMPLATES["calendar_success"].format(tool_result=tool_result))]
+        }
+    else:
+        return {"messages": [AIMessage(content=tool_result)]}
+
 def run_integrated_agent(state: State, *, config: RunnableConfig):
     """
     통합 Agent 역할을 수행하는 노드 (보고서 생성 + 캘린더 등록).
+    리포트 생성은 간단하게, 캘린더 등록은 ReAct 패턴을 사용합니다.
     """
     configuration = Configuration.from_runnable_config(config)
     llm = load_chat_model(configuration.response_model)
@@ -52,85 +111,40 @@ def run_integrated_agent(state: State, *, config: RunnableConfig):
     last_message = state.messages[-1] if state.messages else None
     
     if isinstance(last_message, ToolMessage):
-        # Tool 실행 결과가 있으면 응답 생성
-        tool_result = last_message.content
-        tool_name = last_message.name
-        
-        if tool_name == "create_apartment_report_tool":
-            # 보고서 생성 완료
-            final_response = f"""분양공고 분석 리포트가 성공적으로 생성되었습니다.
-
-{tool_result}
-
-리포트 생성이 완료되었습니다. 
-캘린더에 청약 일정을 등록하시겠습니까? '캘린더 등록' 또는 '캘린더에 등록'이라고 말씀해 주세요."""
-            
-            return {
-                "messages": [AIMessage(content=final_response)],
-                "generated_report": tool_result
-            }
-        elif tool_name == "create_event_tool":
-            # 캘린더 등록 완료
-            final_response = f"""✅ 캘린더 등록이 완료되었습니다!
-
-{tool_result}
-
-청약 일정이 Google Calendar에 성공적으로 등록되었습니다. 
-캘린더에서 확인하실 수 있습니다."""
-            
-            return {"messages": [AIMessage(content=final_response)]}
-        else:
-            # 기타 도구
-            return {"messages": [AIMessage(content=tool_result)]}
+        # Tool 실행 결과 처리
+        return create_response_message(last_message.name, last_message.content)
     else:
         # 사용자 입력 분석
         user_input = state.messages[-1].content if state.messages else ""
         
-        # LLM을 사용하여 사용자 의도 판단
-        intent_prompt = ChatPromptTemplate.from_messages([
-            ("system", prompts.INTENT_ANALYSIS_PROMPT),
-            ("user", "{user_input}")
-        ])
+        # 캘린더 등록 요청인지 확인
+        calendar_keywords = ["캘린더 등록", "일정 등록", "캘린더에 추가", "캘린더에 등록", "일정 추가"]
+        is_calendar_request = any(keyword in user_input for keyword in calendar_keywords)
         
-        intent_messages = intent_prompt.format_messages(user_input=user_input)
-        intent_response = llm.invoke(intent_messages)
-        user_intent = intent_response.content.strip().lower()
-        
-        print(f"User intent detected: {user_intent}")
-        
-        if user_intent == "calendar":
-            # 캘린더 등록 요청
-            generated_report = getattr(state, 'generated_report', None)
-            
-            if generated_report:
-                # 생성된 보고서가 있으면 이를 포함하여 캘린더 등록 요청
-                combined_input = f"""다음 분양공고 분석 리포트를 기반으로 캘린더에 청약 일정을 등록해주세요:
+        if is_calendar_request:
+            # 캘린더 등록: ReAct 패턴 사용
+            if state.generated_report:
+                prompt = get_prompt_template("react")
+                context_input = f"""**이전에 생성된 분양공고 분석 리포트:**
 
-{generated_report}
+{state.generated_report}
 
-사용자 요청: {user_input}"""
-                
-                prompt = ChatPromptTemplate.from_messages([
-                    ("system", prompts.CALENDAR_FROM_REPORT_PROMPT),
-                    ("user", "{user_input}")
-                ])
+**현재 사용자 요청:** {user_input}
+
+**중요:** 위의 리포트 내용을 기반으로 캘린더 등록을 수행하세요. description 필드에는 리포트의 전체 내용을 포함해야 합니다."""
             else:
-                # 보고서가 없으면 일반적인 캘린더 등록 요청
-                combined_input = user_input
-                prompt = ChatPromptTemplate.from_messages([
-                    ("system", prompts.CALENDAR_FROM_REPORT_PROMPT),
-                    ("user", "{user_input}")
-                ])
+                prompt = get_prompt_template("react")
+                context_input = f"""**사용자 요청:** {user_input}
+
+**주의:** 캘린더 등록을 요청하셨지만, 아직 생성된 리포트가 없습니다. 먼저 분양공고 데이터를 제공해주시거나, 이전에 생성된 리포트가 있다면 그 내용을 포함해주세요."""
         else:
-            # 보고서 생성 요청 (기본값)
-            combined_input = user_input
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", prompts.APARTMENT_REPORT_PROMPT),
-                ("user", "{user_input}")
-            ])
+            # 리포트 생성: 간단한 방식 사용
+            prompt = get_prompt_template("report")
+            context_input = user_input
         
-        messages = prompt.format_messages(user_input=combined_input)
-        print(f"Integrated agent input ({user_intent}):", combined_input)
+        # LLM 호출
+        messages = prompt.format_messages(user_input=context_input)
+        print(f"Agent input ({'ReAct' if is_calendar_request else 'Simple'}): {context_input[:200]}...")
         response = llm_with_tools.invoke(messages)
         return {"messages": [response]}
 
@@ -139,45 +153,49 @@ def execute_integrated_tools(state: State, *, config: RunnableConfig):
     통합 Tool을 실행하는 노드.
     """
     last_message = state.messages[-1]
-
     outputs = []
+
     for tool_call in last_message.tool_calls:
-        # 정의된 Tool 중에서 해당 Tool을 찾아 실행
-        for tool in integrated_tools:
-            if tool.name == tool_call['name']:
-                print(f"Integrated Tool '{tool.name}' args:", tool_call['args'])
+        tool_name = tool_call['name']
+        
+        # 도구 매핑에서 직접 찾기 (효율성 향상)
+        if tool_name in TOOL_MAP:
+            tool = TOOL_MAP[tool_name]
+            print(f"Integrated Tool '{tool_name}' args:", tool_call['args'])
+            
+            # 평형별_공급대상_및_분양가 필드 확인 (보고서 생성 도구인 경우)
+            if tool_name == "create_apartment_report_tool":
+                if '평형별_공급대상_및_분양가' in tool_call['args']:
+                    print(f"평형별_공급대상_및_분양가 필드 발견: {type(tool_call['args']['평형별_공급대상_및_분양가'])}")
+                else:
+                    print("⚠️ 평형별_공급대상_및_분양가 필드가 없습니다!")
+                    print(f"사용 가능한 필드들: {list(tool_call['args'].keys())}")
+            
+            try:
+                # Tool 실행
+                result = tool.invoke(tool_call['args'])
+                print(f"Integrated Tool '{tool_name}' result: {result}")
                 
-                # 평형별_공급대상_및_분양가 필드 확인 (보고서 생성 도구인 경우)
-                if tool.name == "create_apartment_report_tool":
-                    if '평형별_공급대상_및_분양가' in tool_call['args']:
-                        print(f"평형별_공급대상_및_분양가 필드 발견: {type(tool_call['args']['평형별_공급대상_및_분양가'])}")
-                    else:
-                        print("⚠️ 평형별_공급대상_및_분양가 필드가 없습니다!")
-                        print(f"사용 가능한 필드들: {list(tool_call['args'].keys())}")
-                
-                try:
-                    # Tool 실행
-                    result = tool.invoke(tool_call['args'])
-                    print(f"Integrated Tool '{tool.name}' result: {result}")
-                    
-                    # 성공적인 결과를 ToolMessage로 반환
-                    outputs.append(
-                        ToolMessage(
-                            content=result,
-                            name=tool_call['name'],
-                            tool_call_id=tool_call['id']
-                        )
+                # 성공적인 결과를 ToolMessage로 반환
+                outputs.append(
+                    ToolMessage(
+                        content=result,
+                        name=tool_name,
+                        tool_call_id=tool_call['id']
                     )
-                except Exception as e:
-                    print(f"Integrated Tool '{tool.name}' execution error: {e}")
-                    error_result = f"Error executing tool: {str(e)}"
-                    outputs.append(
-                        ToolMessage(
-                            content=error_result,
-                            name=tool_call['name'],
-                            tool_call_id=tool_call['id']
-                        )
+                )
+            except Exception as e:
+                print(f"Integrated Tool '{tool_name}' execution error: {e}")
+                error_result = f"Error executing tool: {str(e)}"
+                outputs.append(
+                    ToolMessage(
+                        content=error_result,
+                        name=tool_name,
+                        tool_call_id=tool_call['id']
                     )
+                )
+        else:
+            print(f"⚠️ Unknown tool: {tool_name}")
     
     return {"messages": outputs}
 
@@ -187,11 +205,8 @@ def decide_integrated_next_step(state: State):
     """
     last_message = state.messages[-1]
     if hasattr(last_message, 'tool_calls') and len(last_message.tool_calls) > 0:
-        # Tool Calling이 감지되면 tools 노드로 이동
         return "execute_integrated_tools"
-    else:
-        # Tool Calling이 없으면 최종 응답이므로 종료
-        return END
+    return END
 
 # 통합 그래프 정의
 builder = StateGraph(State, input=InputState, config_schema=Configuration)
