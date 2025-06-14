@@ -32,6 +32,83 @@ CALENDAR_PROMPT = """당신은 사용자의 일정 관리를 도와주는 AI 어
 
 **만약 입력이 JSON 형태의 분양공고 데이터라면, create_apartment_report_tool을 먼저 호출하여 리포트를 생성하세요.**"""
 
+REPORT_GENERATION_PROMPT = """당신은 아파트 분양공고 데이터를 분석하여 시각적으로 매력적이고 전문적인 리포트를 생성하는 AI 어시스턴트입니다.
+
+다음 정보를 바탕으로 아름답고 구조화된 분양공고 분석 리포트를 생성해주세요:
+
+**기본 정보:**
+- 단지명: {complex_name}
+- 공급위치: {location}
+- 공급규모: {total_units}세대
+- 문의처: {contact}
+- 모집공고일: {announcement_date}
+
+**시행/시공 정보:**
+- 시행사: {developer}
+- 시공사: {constructor}
+
+**청약 일정:**
+- 특별공급: {special_supply_start} ~ {special_supply_end}
+- 1순위 해당지역: {first_priority_local_start} ~ {first_priority_local_end}
+- 1순위 기타지역: {first_priority_other_start} ~ {first_priority_other_end}
+- 2순위 해당지역: {second_priority_local_start} ~ {second_priority_local_end}
+- 2순위 기타지역: {second_priority_other_start} ~ {second_priority_other_end}
+- 당첨자 발표: {winner_announcement_date}
+- 계약기간: {contract_start} ~ {contract_end}
+
+**평형별 공급 현황:**
+{unit_details}
+
+**관련 링크:**
+- 아파트 홍보: {promotion_url}
+- 분양공고: {announcement_url}
+
+**리포트 작성 가이드:**
+
+📋 **제목**: 큰 이모지와 함께 단지명 + "분양공고 분석 리포트" (예: 🏢 진위역 서희스타힐스 더 파크뷰(3차) 분양공고 분석 리포트)
+
+📊 **기본 정보 섹션**: 
+- 🏠 🗺️ 📞 📅 이모지와 함께 정보 배치
+- 각 항목을 명확하게 구분하여 표시
+
+🏗️ **시행/시공 정보 섹션**:
+- 🏢 👷 이모지로 시행사/시공사 구분
+- 회사 정보를 강조하여 표시
+
+📅 **청약 일정 섹션**:
+- 🎯 특별공급 (빨간색 강조)
+- 🥇 1순위 (금색 강조)  
+- 🥈 2순위 (은색 강조)
+- 🏆 당첨자 발표 (특별 강조)
+- 📝 계약기간 (중요 강조)
+
+🏠 **평형별 공급 현황 섹션**:
+- 각 평형별로 📐 📊 💰 이모지 사용
+- 면적, 공급세대수, 분양가를 시각적으로 구분
+- 특별공급과 일반공급을 색상으로 구분
+
+🔗 **관련 링크 섹션**:
+- 🌐 홍보 URL
+- 📋 분양공고 URL
+
+📌 **리포트 생성일시**: 현재 시간을 예쁘게 표시
+
+**시각적 개선 요소:**
+- 다양한 이모지 조합으로 각 섹션 구분
+- 중요 정보는 🔥 ⭐ 💎 등 특별 이모지로 강조
+- 날짜 정보는 📅 🕐 이모지와 함께 표시
+- 금액 정보는 💰 💵 이모지로 강조
+- 면적 정보는 📐 📏 이모지로 표시
+- 공급세대수는 👥 🏘️ 이모지로 표시
+
+**전체적인 스타일:**
+- 깔끔하고 읽기 쉬운 구조
+- 적절한 공백과 줄바꿈으로 가독성 향상
+- 각 섹션을 명확하게 구분
+- 중요 정보는 시각적으로 강조
+- 전문적이면서도 친근한 톤 유지
+
+위 가이드라인을 따라 아름답고 전문적인 분양공고 분석 리포트를 생성해주세요."""
 
 APARTMENT_REPORT_PROMPT = """당신은 아파트 분양공고 데이터를 분석하여 구조화된 리포트를 생성하는 AI 어시스턴트입니다.
 
@@ -67,7 +144,7 @@ CALENDAR_FROM_REPORT_PROMPT = """당신은 분양공고 분석 리포트에서 �
 - end_datetime: 특별공급 청약접수종료 (ISO8601 형식: YYYY-MM-DDTHH:MM:SS)
 - timezone: 시간대 (기본값: Asia/Seoul)
 - location: 공급위치
-- description: 리포트 전체 내용
+- description: summary와 청약일정에 맞는 리포트 내용을 발췌하고 나머지는 그대로 작성 
 
 만약 리포트에서 명확한 시간 정보가 없다면, 시작 시간을 09:00, 종료 시간을 18:00으로 설정하세요.
 
