@@ -1,96 +1,143 @@
 import json
 import os.path
-import pickle
 
-from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from googleapiclient.discovery import build
-
+from langchain_core.messages import AIMessage
 from langgraph.graph import StateGraph, END
-from langchain_core.tools import Tool, tool, StructuredTool
-from langchain_core.messages import ToolMessage, AIMessage
-from google.auth.transport.requests import Request
+from langchain_core.tools import StructuredTool
+from langchain_core.messages import ToolMessage
 from langchain_core.runnables import RunnableConfig
-from google_auth_oauthlib.flow import InstalledAppFlow
-from langchain.agents.format_scratchpad.log import format_log_to_str
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-
 
 from retrieval_graph import prompts
 from retrieval_graph.utils import load_chat_model
 from retrieval_graph.state import InputState, State
 from retrieval_graph.configuration import Configuration
 
-load_dotenv()
 
-SCOPES = ['https://www.googleapis.com/auth/calendar']
-
-def get_calendar_service():
+class ApartmentReportInput(BaseModel):
     """
-    구글 캘린더 인증 서비스
+    아파트 분양공고 리포트 생성 입력 정의
     """
-    creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
-    service = build('calendar', 'v3', credentials=creds)
-    return service
+    단지명: str = Field(default="", description="아파트 단지명")
+    공급위치: str = Field(default="", description="공급 위치")
+    공급규모: int = Field(default=0, description="공급 규모")
+    문의처: str = Field(default="", description="문의처")
+    모집공고일: str = Field(default="", description="모집공고일")
+    특별공급_청약접수시작: str = Field(default="", description="특별공급 청약접수시작")
+    특별공급_청약접수종료: str = Field(default="", description="특별공급 청약접수종료")
+    당첨자_발표일: str = Field(default="", description="당첨자 발표일")
+    계약_시작: str = Field(default="", description="계약 시작일")
+    계약_종료: str = Field(default="", description="계약 종료일")
+    시행사: str = Field(default="", description="시행사")
+    시공사: str = Field(default="", description="시공사")
+    아파트_홍보_URL: str = Field(default="", description="아파트 홍보 URL")
+    분양공고_URL: str = Field(default="", description="분양공고 URL")
+    평형별_공급대상_및_분양가: dict = Field(default_factory=dict, description="평형별 공급대상 및 분양가 정보. 각 평형별로 주택형, 면적, 공급세대수, 특별공급 세부정보, 분양가 등을 포함하는 딕셔너리입니다. 이 필드는 반드시 포함되어야 합니다.")
 
 
-class EventInput(BaseModel):
+def create_apartment_report_tool(
+    단지명: str = "",
+    공급위치: str = "",
+    공급규모: int = 0,
+    문의처: str = "",
+    모집공고일: str = "",
+    특별공급_청약접수시작: str = "",
+    특별공급_청약접수종료: str = "",
+    당첨자_발표일: str = "",
+    계약_시작: str = "",
+    계약_종료: str = "",
+    시행사: str = "",
+    시공사: str = "",
+    아파트_홍보_URL: str = "",
+    분양공고_URL: str = "",
+    평형별_공급대상_및_분양가: dict = None) -> str:
     """
-    캘린더 이벤트 정의.
+    아파트 분양공고 데이터를 바탕으로 구조화된 리포트를 생성합니다.
     """
-    summary: str = Field(description="Event title")
-    start_datetime: str = Field(description="Start datetime in ISO8601")
-    end_datetime: str = Field(description="End datetime in ISO8601")
-    timezone: str = Field(default="Asia/Seoul", description="Timezone string")
-    location: str = Field(default="", description="Event location")
-    description: str = Field(default="", description="event all text")
-    reminders: list = Field(default_factory=list, description="List of reminders")
+    if 평형별_공급대상_및_분양가 is None:
+        평형별_공급대상_및_분양가 = {}
+    
+    # JSON 문자열인 경우 파싱
+    if isinstance(평형별_공급대상_및_분양가, str):
+        try:
+            import json
+            평형별_공급대상_및_분양가 = json.loads(평형별_공급대상_및_분양가)
+            print(f"JSON 문자열을 파싱했습니다: {type(평형별_공급대상_및_분양가)}")
+        except json.JSONDecodeError as e:
+            print(f"JSON 파싱 오류: {e}")
+            평형별_공급대상_및_분양가 = {}
+    
+    # 리포트 생성
+    report = f"""🏢 {단지명} 분양공고 분석 리포트
 
-def create_event_tool(
-    summary: str,
-    start_datetime: str,
-    end_datetime: str,
-    timezone: str = "Asia/Seoul",
-    location: str = "",
-    description: str = "",
-    reminders: list = None) -> str:
-    """
-    구글 캘린더에 새로운 이벤트를 생성합니다.
-    """
-    service = get_calendar_service() 
-    event = {
-        "summary": summary,
-        "location": location,
-        "description": description,
-        "start": {"dateTime": start_datetime, "timeZone": timezone},
-        "end": {"dateTime": end_datetime, "timeZone": timezone},
-        "reminders": {"useDefault": False, "overrides": reminders or []},
-    }
-    print(event)
-    created_event = service.events().insert(calendarId="primary", body=event).execute()
-    return f"Event created: {created_event.get('htmlLink')}"
+📊 기본 정보
+• 단지명: {단지명}
+• 공급위치: {공급위치}
+• 공급규모: {공급규모}세대
+• 문의처: {문의처}
+• 모집공고일: {모집공고일}
+
+🏗️ 시행/시공 정보
+• 시행사: {시행사}
+• 시공사: {시공사}
+
+📅 청약 일정
+• 특별공급: {특별공급_청약접수시작} ~ {특별공급_청약접수종료}
+• 당첨자 발표: {당첨자_발표일}
+• 계약기간: {계약_시작} ~ {계약_종료}
+
+🏠 평형별 공급 현황
+"""
+    
+    # 평형별 정보 추가
+    print(f"평형별_공급대상_및_분양가 데이터: {평형별_공급대상_및_분양가}")
+    print(f"평형별_공급대상_및_분양가 타입: {type(평형별_공급대상_및_분양가)}")
+    
+    if not 평형별_공급대상_및_분양가:
+        report += "평형별 공급 정보가 없습니다.\n"
+    else:
+        for house_type, details in 평형별_공급대상_및_분양가.items():
+            print(f"처리 중인 평형: {house_type}, 상세정보: {details}")
+            if isinstance(details, dict):
+                total_supply = details.get('전체 공급세대수', '0')
+                special_supply = details.get('특별 공급세대수', {}).get('전체', '0') if isinstance(details.get('특별 공급세대수'), dict) else '0'
+                general_supply = details.get('일반 공급세대수', '0')
+                price = details.get('분양가(최고가 기준)', '정보 없음')
+                area = details.get('주택공급면적', '정보 없음')
+                
+                report += f"""
+• {house_type} ({area}㎡)
+  - 전체 공급: {total_supply}세대
+  - 특별공급: {special_supply}세대
+  - 일반공급: {general_supply}세대
+  - 분양가: {price}
+"""
+            else:
+                print(f"평형 {house_type}의 상세정보가 딕셔너리가 아님: {type(details)}")
+                report += f"• {house_type}: 데이터 형식 오류\n"
+    
+    report += f"""
+🔗 관련 링크
+• 아파트 홍보: {아파트_홍보_URL}
+• 분양공고: {분양공고_URL}
+
+📌 리포트 생성일시: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+"""
+    
+    print(f"생성된 아파트 리포트:\n{report}")
+    return report
+
 
 tools = [
     StructuredTool.from_function(
-        func=create_event_tool,
-        name="create_event_tool",
-        description="청약일정에 대한 공고문 json을 받아 옵니다. 해당 공고문에서 내용을 추출하여 구글 캘린더에 새로운 이벤트를 생성합니다.",
-        args_schema=EventInput
+        func=create_apartment_report_tool,
+        name="create_apartment_report_tool",
+        description="아파트 분양공고 데이터를 받아서 구조화된 분양공고 분석 리포트를 생성합니다. 단지명, 위치, 공급규모, 청약일정, 평형별 정보 등을 포함합니다. **평형별_공급대상_및_분양가 필드는 반드시 포함되어야 하며, 이는 각 평형별 상세 공급 정보와 분양가를 담고 있습니다.**",
+        args_schema=ApartmentReportInput
     )
 ]
-# Define the function that calls the model
 
 
 def run_agent(
@@ -100,28 +147,28 @@ def run_agent(
     Agent 역할을 수행하는 노드.
     LLM을 호출하고, Tool Calling을 처리하거나 최종 응답을 생성.
     """
-    configuration  = Configuration.from_runnable_config(config)
-    llm            = load_chat_model(configuration.response_model)
+    configuration = Configuration.from_runnable_config(config)
+    llm = load_chat_model(configuration.response_model)
     llm_with_tools = llm.bind_tools(tools)
 
     # 마지막 메시지가 ToolMessage인지 확인
     last_message = state.messages[-1] if state.messages else None
     
     if isinstance(last_message, ToolMessage):
-        # Tool 실행 결과가 있으면 캘린더 등록 완료 메시지 생성
+        # Tool 실행 결과가 있으면 최종 응답 생성
         tool_result = last_message.content
-        final_response = f"""✅ 캘린더 등록이 완료되었습니다!
+        final_response = f"""분양공고 분석 리포트가 성공적으로 생성되었습니다.
 
 {tool_result}
 
-청약 일정이 Google Calendar에 성공적으로 등록되었습니다. 
-캘린더에서 확인하실 수 있습니다."""
+리포트 생성이 완료되었습니다."""
+        
         
         return {"messages": [AIMessage(content=final_response)]}
     else:
         # 일반적인 Tool Calling 처리
         prompt = ChatPromptTemplate.from_messages([
-            ("system", prompts.CALENDAR_PROMPT),
+            ("system", prompts.APARTMENT_REPORT_PROMPT),
             ("user", "{user_input}")
         ])
         
@@ -147,6 +194,14 @@ def execute_tools(
         for tool in tools:
             if tool.name == tool_call['name']:
                 print("Tool args:", tool_call['args'])
+                
+                # 평형별_공급대상_및_분양가 필드 확인
+                if '평형별_공급대상_및_분양가' in tool_call['args']:
+                    print(f"평형별_공급대상_및_분양가 필드 발견: {type(tool_call['args']['평형별_공급대상_및_분양가'])}")
+                    print(f"평형별_공급대상_및_분양가 내용: {tool_call['args']['평형별_공급대상_및_분양가']}")
+                else:
+                    print("⚠️ 평형별_공급대상_및_분양가 필드가 없습니다!")
+                    print(f"사용 가능한 필드들: {list(tool_call['args'].keys())}")
                 
                 try:
                     # Tool 실행
@@ -176,9 +231,7 @@ def execute_tools(
     return {"messages": outputs}
 
 
-# Define a new graph (It's just a pipe)
-
-
+# Define a new graph
 builder = StateGraph(State, input=InputState, config_schema=Configuration)
 
 builder.add_node(run_agent)
@@ -206,43 +259,150 @@ builder.add_conditional_edges(
 builder.add_edge("execute_tools", "run_agent")
 
 # Finally, we compile it!
-# This compiles it into a graph you can invoke and deploy.
 graph_list = builder.compile(
-    interrupt_before=[],  # if you want to update the state before calling the tools
+    interrupt_before=[],
     interrupt_after=[],
 )
-graph_list.name = "CalendarGraph"
+graph_list.name = "ReportGraph"
 
-
-
-####testset####
-sample_report = """🏡✨ 청약 공고 안내 ✨🏡
-
-안녕하세요, 소중한 고객님.
-
-항상 저희에게 보내주시는 관심과 성원에 깊이 감사드립니다.
-
-📢 청약 공고 안내
-
-많은 분들이 기다려주신
-신규 청약 공고를 아래와 같이 안내드립니다.
-
-📋 청약 개요
-
-공급 대상: 반포자이아파트
-
-청약 접수 기간: 2025년 6월 10일(화) ~ 2025년 6월 11일(수)
-
-당첨자 발표: 2025년 6월 12일(목)
-
-계약 기간: 2025년 7월 10일(목) ~ 2025년 7월 12일(토)
-
-접수 방법: 공식 홈페이지 또는 지정 접수처
-
-📝 유의사항
-
-청약 자격 및 제출 서류 등 자세한 사항은
-공식 홈페이지 또는 첨부된 안내문을 꼭 확인해 주세요.
-
-일정, 조건 등은 사정에 따라 변경될 수 있습니다.
-"""
+sample_report = {
+    '단지명': '진위역 서희스타힐스 더 파크뷰(3차)',
+   '공급위치': '경기도 평택시 진위면 갈곶리 239-60번지 일원',
+   '법정동코드': 41220,
+   '공급규모': 53,
+   '문의처': '18006366',
+   '모집공고일': '2025-06-05',
+   '특별공급 청약접수시작': '2025-06-16',
+   '특별공급 청약접수종료': '2025-06-16',
+   '1순위 해당지역 청약접수시작': '2025-06-17',
+   '1순위 해당지역 청약접수종료': '2025-06-17',
+   '1순위 기타지역 청약접수시작': '2025-06-17',
+   '1순위 기타지역 청약접수종료': '2025-06-17',
+   '2순위 해당지역 청약접수시작': '2025-06-18',
+   '2순위 해당지역 청약접수종료': '2025-06-18',
+   '2순위 기타지역 청약접수시작': '2025-06-18',
+   '2순위 기타지역 청약접수종료': '2025-06-18',
+   '당첨자 발표일': '2025-06-24',
+   '계약 시작': '2025-07-07',
+   '계약 종료': '2025-07-09',
+   '시행사': '엘지로 지역주택조합',
+   '시공사': '(주)서희건설',
+   '아파트 홍보 URL': 'http://www.starhills-jinwi.co.kr',
+   '분양공고 URL': 'https://www.applyhome.co.kr/ai/aia/selectAPTLttotPblancDetail.do?houseManageNo=2025000199&pblancNo=2025000199',
+   '평형별 공급대상 및 분양가': {
+      '059.7537A': {
+         '주택형': '059.7537A',
+         '주택공급면적': '79.3049',
+         '전체 공급세대수': '17',
+         '특별 공급세대수': {
+            '전체': '6',
+            '다자녀가구': '1',
+            '신혼부부': '3',
+            '생애최초': '1',
+            '청년': '0',
+            '노부모부양': '0',
+            '신생아(일반형)': '0',
+            '기관추천': '1',
+            '이전기관': '0',
+            '기타': '0'
+         },
+         '일반 공급세대수': '11',
+         '분양가(최고가 기준)': '40,900 만원'
+      },
+      '059.7718B': {
+         '주택형': '059.7718B',
+         '주택공급면적': '79.1417',
+         '전체 공급세대수': '6',
+         '특별 공급세대수': {
+            '전체': '5',
+            '다자녀가구': '1',
+            '신혼부부': '2',
+            '생애최초': '1',
+            '청년': '0',
+            '노부모부양': '0',
+            '신생아(일반형)': '0',
+            '기관추천': '1',
+            '이전기관': '0',
+            '기타': '0'
+         },
+         '일반 공급세대수': '1',
+         '분양가(최고가 기준)': '38,800 만원'
+      },
+      '071.7007B': {
+         '주택형': '071.7007B',
+         '주택공급면적': '93.8458',
+         '전체 공급세대수': '13',
+         '특별 공급세대수': {
+            '전체': '7',
+            '다자녀가구': '1', 
+            '신혼부부': '3',
+            '생애최초': '1',
+            '청년': '0',
+            '노부모부양': '1',
+            '신생아(일반형)': '0',
+            '기관추천': '1',
+            '이전기관': '0',
+            '기타': '0'
+         },
+         '일반 공급세대수': '6',
+         '분양가(최고가 기준)': '48,400 만원'
+      },
+      '071.4998D': {
+         '주택형': '071.4998D',
+         '주택공급면적': '94.6473',
+         '전체 공급세대수': '9',
+         '특별 공급세대수': {
+            '전체': '5',
+            '다자녀가구': '1',
+            '신혼부부': '2',
+            '생애최초': '1',
+            '청년': '0',
+            '노부모부양': '0',
+            '신생아(일반형)': '0',
+            '기관추천': '1',
+            '이전기관': '0',
+            '기타': '0'
+         },
+         '일반 공급세대수': '4',
+         '분양가(최고가 기준)': '47,800 만원'
+      },
+      '084.8277A': {
+         '주택형': '084.8277A',
+         '주택공급면적': '110.3695',
+         '전체 공급세대수': '7',
+         '특별 공급세대수': {
+            '전체': '3',
+            '다자녀가구': '1',
+            '신혼부부': '1',
+            '생애최초': '0',
+            '청년': '0',
+            '노부모부양': '0',
+            '신생아(일반형)': '0',
+            '기관추천': '1',
+            '이전기관': '0',
+            '기타': '0'
+         },
+         '일반 공급세대수': '4',
+         '분양가(최고가 기준)': '54,600 만원'
+      },
+      '084.7233B': {
+         '주택형': '084.7233B', 
+         '주택공급면적': '110.2712',
+         '전체 공급세대수': '1',
+         '특별 공급세대수': {
+            '전체': '0',
+            '다자녀가구': '0',
+            '신혼부부': '0',
+            '생애최초': '0',
+            '청년': '0',
+            '노부모부양': '0',
+            '신생아(일반형)': '0',
+            '기관추천': '0',
+            '이전기관': '0', 
+            '기타': '0'
+         },
+         '일반 공급세대수': '1',
+         '분양가(최고가 기준)': '54,500 만원'
+      }
+   }
+}
