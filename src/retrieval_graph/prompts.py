@@ -56,8 +56,6 @@ REPORT_GENERATION_PROMPT = """당신은 아파트 분양공고 데이터를 분�
 - 당첨자 발표: {winner_announcement_date}
 - 계약기간: {contract_start} ~ {contract_end}
 
-평형별 공급 현황:
-{unit_details}
 
 평당가 정보:
 {price_per_pyeong}
@@ -87,11 +85,11 @@ REPORT_GENERATION_PROMPT = """당신은 아파트 분양공고 데이터를 분�
 - 회사 정보를 강조하여 표시
 
 📅 청약 일정 섹션:
-- 🎯 특별공급 (빨간색 강조)
-- 🥇 1순위 (금색 강조)  
-- 🥈 2순위 (은색 강조)
-- 🏆 당첨자 발표 (특별 강조)
-- 📝 계약기간 (중요 강조)
+- 🎯 특별공급 
+- 🥇 1순위   
+- 🥈 2순위
+- 🏆 당첨자 발표 
+- 📝 계약기간 
 
 🏠 평형별 공급 현황 섹션:
 - 각 평형별로 📐 📊 💰 이모지 사용
