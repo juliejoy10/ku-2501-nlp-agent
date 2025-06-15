@@ -38,6 +38,8 @@ from retrieval_graph import prompts
 
 from retrieval_graph.tools_apt_list import getAPTListInput, get_apt_list
 from retrieval_graph.tools_api_sale_price import calcAvgPyungPriceInput, calc_avg_pyung_price
+from retrieval_graph.report_tools import ApartmentReportInput, create_apartment_report_tool
+from retrieval_graph.calendar_tools import EventInput, create_event_tool
 # endregion
 
 
@@ -56,6 +58,18 @@ tools = [
         description = "아파트 분양 단지의 법정동 코드와 읍면동 이름을 활용하여 해당지역 최근 3개월 아파트 실거래가 기준 평단가 평균을 조회합니다.",
         args_schema = calcAvgPyungPriceInput
     ),
+    StructuredTool.from_function(
+        name        = "create_apartment_report_tool",
+        func        = create_apartment_report_tool,
+        description = "아파트 분양공고 데이터를 받아서 구조화된 분양공고 분석 리포트를 생성합니다. 단지명, 위치, 공급규모, 청약일정, 평형별 정보 등을 포함합니다. **평형별_공급대상_및_분양가 필드는 반드시 포함되어야 하며, 이는 각 평형별 상세 공급 정보와 분양가를 담고 있습니다.**",
+        args_schema = ApartmentReportInput
+    ),
+    StructuredTool.from_function(
+        name        = "create_event_tool",
+        func        = create_event_tool,
+        description = "청약일정에 대한 공고문 json을 받아 옵니다. 해당 공고문에서 내용을 추출하여 구글 캘린더에 새로운 이벤트를 생성합니다.",
+        args_schema = EventInput
+    )
 ]
 # endregion
 
