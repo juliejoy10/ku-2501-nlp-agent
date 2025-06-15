@@ -10,7 +10,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 
 
 class QueryPerplexityInput(BaseModel):
-    query: str = Field(description="검색하고 싶은 지역 부동산 정보 질문 (예: '서울시 강서구 방화동 부동산 소식')")
+    query: str = Field(description="청약 신청 지역 부동산 정보 질문 (예: '서울시 강서구 방화동 부동산 소식')")
 
 
 def query_perplexity_tool(input: QueryPerplexityInput) -> dict:
