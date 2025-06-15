@@ -42,6 +42,9 @@ class ApartmentReportInput(BaseModel):
     promotion_url: str = Field(default="", description="아파트 홍보 URL")
     announcement_url: str = Field(default="", description="분양공고 URL")
     unit_details: dict = Field(default_factory=dict, description="평형별 공급대상 및 분양가 정보. 각 평형별로 주택형, 면적, 공급세대수, 특별공급 세부정보, 분양가 등을 포함하는 딕셔너리입니다. 이 필드는 반드시 포함되어야 합니다.")
+    price_per_pyeong: str = Field(default="", description="평당가 정보. 입력 데이터의 '평당가' 필드를 이 매개변수로 전달하세요. 각 평형별 평당가를 포함하는 문자열입니다.")
+    market_price: str = Field(default="", description="시세 정보. 입력 데이터의 '시세' 필드를 이 매개변수로 전달하세요. 주변 아파트 실거래가 기준 평균 시세 정보를 포함하는 문자열입니다.")
+    subscription_rank: str = Field(default="", description="청약 적정 순위. 입력 데이터의 '청약_적정_순위' 또는 '청약적정순위' 필드를 이 매개변수로 전달하세요. 청약 적정성을 순위로 나타낸 정보입니다.")
     config: dict = Field(default_factory=dict, description="설정 정보")
 
 
@@ -69,6 +72,9 @@ def create_apartment_report_tool(
     promotion_url: str = "",
     announcement_url: str = "",
     unit_details: dict = None,
+    price_per_pyeong: str = "",
+    market_price: str = "",
+    subscription_rank: str = "",
     config: dict = None) -> str:
     """
     아파트 분양공고 데이터를 바탕으로 구조화된 리포트를 생성합니다.
@@ -85,120 +91,48 @@ def create_apartment_report_tool(
             unit_details = {}
     
     # LLM을 사용하여 자연스러운 리포트 생성
-    try:
-        from retrieval_graph.utils import load_chat_model
-        from retrieval_graph.configuration import Configuration
-        from retrieval_graph import prompts
-        
-        if config is None:
-            config = {}
-        configuration = Configuration.from_runnable_config(config)
-        llm = load_chat_model(configuration.response_model)
-        
-        # prompts.py의 프롬프트 사용
-        report_prompt = prompts.REPORT_GENERATION_PROMPT.format(
-            complex_name=complex_name,
-            location=location,
-            total_units=total_units,
-            contact=contact,
-            announcement_date=announcement_date,
-            developer=developer,
-            constructor=constructor,
-            special_supply_start=special_supply_start,
-            special_supply_end=special_supply_end,
-            first_priority_local_start=first_priority_local_start,
-            first_priority_local_end=first_priority_local_end,
-            first_priority_other_start=first_priority_other_start,
-            first_priority_other_end=first_priority_other_end,
-            second_priority_local_start=second_priority_local_start,
-            second_priority_local_end=second_priority_local_end,
-            second_priority_other_start=second_priority_other_start,
-            second_priority_other_end=second_priority_other_end,
-            winner_announcement_date=winner_announcement_date,
-            contract_start=contract_start,
-            contract_end=contract_end,
-            unit_details=unit_details,
-            promotion_url=promotion_url,
-            announcement_url=announcement_url
-        )
-        
-        response = llm.invoke(report_prompt)
-        return response.content
-        
-    except Exception as e:
-        print(f"LLM 리포트 생성 오류: {e}")
-        return create_basic_report(complex_name, location, total_units, contact, announcement_date,
-                                 special_supply_start, special_supply_end,
-                                 first_priority_local_start, first_priority_local_end,
-                                 first_priority_other_start, first_priority_other_end,
-                                 second_priority_local_start, second_priority_local_end,
-                                 second_priority_other_start, second_priority_other_end,
-                                 winner_announcement_date, contract_start, contract_end,
-                                 developer, constructor, promotion_url, announcement_url, unit_details)
-
-
-def create_basic_report(complex_name, location, total_units, contact, announcement_date,
-                        special_supply_start, special_supply_end,
-                        first_priority_local_start, first_priority_local_end,
-                        first_priority_other_start, first_priority_other_end,
-                        second_priority_local_start, second_priority_local_end,
-                        second_priority_other_start, second_priority_other_end,
-                        winner_announcement_date, contract_start, contract_end,
-                        developer, constructor, promotion_url, announcement_url, unit_details):
-    """LLM 실패시 사용할 기본 템플릿 리포트"""
     
-    report = f"""🏢 {complex_name} 분양공고 분석 리포트
-
-📊 기본 정보
-• 단지명: {complex_name}
-• 공급위치: {location}
-• 공급규모: {total_units}세대
-• 문의처: {contact}
-• 모집공고일: {announcement_date}
-
-🏗️ 시행/시공 정보
-• 시행사: {developer}
-• 시공사: {constructor}
-
-📅 청약 일정
-• 특별공급: {special_supply_start} ~ {special_supply_end}
-• 1순위 해당지역: {first_priority_local_start} ~ {first_priority_local_end}
-• 1순위 기타지역: {first_priority_other_start} ~ {first_priority_other_end}
-• 2순위 해당지역: {second_priority_local_start} ~ {second_priority_local_end}
-• 2순위 기타지역: {second_priority_other_start} ~ {second_priority_other_end}
-• 당첨자 발표: {winner_announcement_date}
-• 계약기간: {contract_start} ~ {contract_end}
-
-🏠 평형별 공급 현황"""
-
-    if not unit_details:
-        report += "\n평형별 공급 정보가 없습니다."
-    else:
-        for house_type, details in unit_details.items():
-            if isinstance(details, dict):
-                special_supply = details.get('특별 공급세대수', {}).get('전체', '0') if isinstance(details.get('특별 공급세대수'), dict) else '0'
-                general_supply = details.get('일반 공급세대수', '0')
-                price = details.get('분양가(최고가 기준)', '정보 없음')
-                area = details.get('주택공급면적', '정보 없음')
-                
-                report += f"""
-• {house_type} ({area}㎡)
-  - 특별공급: {special_supply}세대
-  - 일반공급: {general_supply}세대
-  - 분양가: {price}"""
-            else:
-                report += f"\n• {house_type}: 데이터 형식 오류"
+    from retrieval_graph.utils import load_chat_model
+    from retrieval_graph.configuration import Configuration
+    from retrieval_graph import prompts
     
-    report += f"""
-
-🔗 관련 링크
-• 아파트 홍보: {promotion_url}
-• 분양공고: {announcement_url}
-
-📌 리포트 생성일시
-{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+    if config is None:
+        config = {}
+    configuration = Configuration.from_runnable_config(config)
+    llm = load_chat_model(configuration.response_model)
     
-    return {'report':report}
+    # prompts.py의 프롬프트 사용
+    report_prompt = prompts.REPORT_GENERATION_PROMPT.format(
+        complex_name=complex_name,
+        location=location,
+        total_units=total_units,
+        contact=contact,
+        announcement_date=announcement_date,
+        developer=developer,
+        constructor=constructor,
+        special_supply_start=special_supply_start,
+        special_supply_end=special_supply_end,
+        first_priority_local_start=first_priority_local_start,
+        first_priority_local_end=first_priority_local_end,
+        first_priority_other_start=first_priority_other_start,
+        first_priority_other_end=first_priority_other_end,
+        second_priority_local_start=second_priority_local_start,
+        second_priority_local_end=second_priority_local_end,
+        second_priority_other_start=second_priority_other_start,
+        second_priority_other_end=second_priority_other_end,
+        winner_announcement_date=winner_announcement_date,
+        contract_start=contract_start,
+        contract_end=contract_end,
+        unit_details=unit_details,
+        price_per_pyeong=price_per_pyeong,
+        market_price=market_price,
+        subscription_rank=subscription_rank,
+        promotion_url=promotion_url,
+        announcement_url=announcement_url
+    )
+    
+    response = llm.invoke(report_prompt)
+    return response.content
 
 
 tools = [
@@ -219,10 +153,9 @@ def run_agent(
     LLM을 호출하고, Tool Calling을 처리하거나 최종 응답을 생성.
     """
     configuration = Configuration.from_runnable_config(config)
-    print("sdsds", config, configuration)
     llm = load_chat_model(configuration.response_model)
     llm_with_tools = llm.bind_tools(tools)
-
+    
     # 마지막 메시지가 ToolMessage인지 확인
     last_message = state.messages[-1] if state.messages else None
     
@@ -274,6 +207,7 @@ def execute_tools(
                 else:
                     print("⚠️ 평형별_공급대상_및_분양가 필드가 없습니다!")
                     print(f"사용 가능한 필드들: {list(tool_call['args'].keys())}")
+                
                 
                 try:
                     # Tool 실행
