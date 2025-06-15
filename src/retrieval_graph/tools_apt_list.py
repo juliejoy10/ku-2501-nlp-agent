@@ -1,46 +1,72 @@
-import datetime
+# region    '기본 라이브러리'
+from datetime import datetime, timedelta
 import requests
-import os
-import dotenv
+import json
 from bs4 import BeautifulSoup
+import os
+# endregion
 
-from langchain.chat_models import ChatOpenAI
-from langchain.agents import initialize_agent, AgentType
-from langchain.tools import Tool, tool
+# region    'LangChain 라이브러리'
+from langchain_core.pydantic_v1 import BaseModel, Field
+# endregion
 
-dotenv.load_dotenv('../../.env')
+# region    'LangGraph 라이브러리'
+from retrieval_graph.constants import AREA_CODE
+# endregion
 
 
-@tool
-def getAPTList(city: str) -> dict:
+class getAPTListInput(BaseModel):
     """
-    Name: getAPTList
-    Description: Get the apartment sales announcements in the city requested by the user.
-    Parameters:
-    city (required): City names at the city/province level in the Korea. example: '서울', '경기', etc.
+    아파트 분양정보 조회 Tool의 입력 정의
     """
 
+    city: str = Field(default="", description="한국의 시/도 기준 도시명. 예: '서울', '경기', etc.")
+
+
+def get_apt_list(city: str) -> dict:
+    """
+    사용자가 요청한 지역의 아파트 분양정보를 조회합니다.
+    """
+
+    # region    'Parameter Setting'
     base_url    = 'http://api.odcloud.kr/api'
     serviceKey  = os.environ['DATA_GO_KR_SERVICE_KEY']
     perPage     = 100
-    target_date = (datetime.datetime.now() - datetime.timedelta(days=30)).strftime('%Y-%m-%d')
-    today       = datetime.datetime.now().strftime('%Y-%m-%d')
+    target_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    today       = datetime.now().strftime('%Y-%m-%d')
     target_area = city
+    # endregion
 
-    url = f'{base_url}/ApplyhomeInfoDetailSvc/v1/getAPTLttotPblancDetail?serviceKey={serviceKey}'
-    url = f'{url}&perPage={perPage}'
-    url = f'{url}&cond[RCRIT_PBLANC_DE::GTE]={target_date}'
-    url = f'{url}&cond[SUBSCRPT_AREA_CODE_NM::EQ]={target_area}'
+    # region    '분양정보 조회'
+    url      = f'{base_url}/ApplyhomeInfoDetailSvc/v1/getAPTLttotPblancDetail?serviceKey={serviceKey}'
+    url      = f'{url}&perPage={perPage}'
+    url      = f'{url}&cond[RCRIT_PBLANC_DE::GTE]={target_date}'
+    url      = f'{url}&cond[SUBSCRPT_AREA_CODE_NM::EQ]={target_area}'
     apt_list = requests.get(url).json()['data']
+    # endregion
 
+    # region    '분양정보 구조화'
     ret = []
     for apt_info in apt_list:
-        if apt_info['RCEPT_ENDDE'] < today:
-            continue
+        # region    '청약접수 종료일이 이미 지났으면 가져오지 않도록 설정, 단 시연을 위해 생략'
+        # if apt_info['RCEPT_ENDDE'] < today:
+        #     continue
+        # endregion
 
+        # region    '법정동 코드 매핑'
+        area    = apt_info['HSSPLY_ADRES'].split()
+        area_cd = None
+        if ' '.join(area[:2]) in AREA_CODE.keys():
+            area_cd = AREA_CODE.get(' '.join(area[:2]))
+        elif ' '.join(area[:3]) in AREA_CODE.keys():
+            area_cd = AREA_CODE.get(' '.join(area[:3]))
+        # endregion
+
+        # region    '기본 정보 저장'
         item = {
             '단지명'                     : apt_info['HOUSE_NM'],
             '공급위치'                   : apt_info['HSSPLY_ADRES'],
+            '법정동코드'                 : area_cd,
             '공급규모'                   : apt_info['TOT_SUPLY_HSHLDCO'],
             '문의처'                     : apt_info['MDHS_TELNO'],
             '모집공고일'                 : apt_info['RCRIT_PBLANC_DE'],
@@ -63,12 +89,15 @@ def getAPTList(city: str) -> dict:
             '분양공고 URL'               : apt_info['PBLANC_URL'],
             '평형별 공급대상 및 분양가'  : {},
         }
+        # endregion
 
-        headers = {
+        # region    '공급규모 & 공급가 조회'
+        headers         = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
         }
         apt_detail_info = BeautifulSoup(requests.get(apt_info['PBLANC_URL'], headers=headers).text, 'html.parser')
         tables          = apt_detail_info.find_all('tbody')
+
         if len(tables) == 6:
             supply_all     = tables[2].find_all('tr')[:-1]
             supply_special = tables[3].find_all('tr')
@@ -77,7 +106,9 @@ def getAPTList(city: str) -> dict:
             supply_all     = tables[2].find_all('tr')[:-1]
             supply_special = []
             supply_costs   = tables[3].find_all('tr')
+        # endregion
 
+        # region    '공급규모 저장'
         for supply_item in supply_all:
             supply_columns = supply_item.find_all('td')
             supply_columns = supply_columns[-6:]
@@ -90,7 +121,9 @@ def getAPTList(city: str) -> dict:
                 },
                 '일반 공급세대수': supply_columns[2].text.strip(),
             }
+        # endregion
 
+        # region    '특별공급 규모 저장'
         for supply_item in supply_special:
             supply_columns = supply_item.find_all('td')
             item['평형별 공급대상 및 분양가'][ supply_columns[0].text.strip() ]['특별 공급세대수']['다자녀가구']     = supply_columns[1].text.strip()
@@ -102,29 +135,26 @@ def getAPTList(city: str) -> dict:
             item['평형별 공급대상 및 분양가'][ supply_columns[0].text.strip() ]['특별 공급세대수']['기관추천']       = supply_columns[7].text.strip()
             item['평형별 공급대상 및 분양가'][ supply_columns[0].text.strip() ]['특별 공급세대수']['이전기관']       = supply_columns[8].text.strip()
             item['평형별 공급대상 및 분양가'][ supply_columns[0].text.strip() ]['특별 공급세대수']['기타']           = supply_columns[9].text.strip()
+        # endregion
 
+        # region    '분양가 저장 및 평당가 계산'
+        total_cost = 0
+        total_size = 0
         for supply_item in supply_costs:
             supply_columns = supply_item.find_all('td')
             item['평형별 공급대상 및 분양가'][ supply_columns[0].text.strip() ]['분양가(최고가 기준)'] = f'{supply_columns[1].text.strip()} 만원'
+            total_cost += int(supply_columns[1].text.strip().replace(',', ''))
+            total_size += int(supply_columns[0].text.strip().split('.', 1)[0])
+
+        item['평당가'] = f'{int(total_cost / (total_size / 3.3))} 만원'
+        # endregion
 
         ret.append(item)
+    # endregion
 
-    return ret
-
-llm   = ChatOpenAI(temperature=0, model='gpt-4o-mini')
-tools = [
-    Tool(
-        name        = "getAPTList",
-        func        = getAPTList,
-        description = "Get the apartment sales announcements in the city requested by the user.",
-    )
-]
-agent = initialize_agent(
-    tools   = tools,
-    llm     = llm,
-    agent   = AgentType.OPENAI_FUNCTIONS,
-    verbose = True,
-)
-
-result = agent.invoke("경기 지역에 분양 진행중인 아파트 현황을 전부 확인하고 분양정보들을 순서대로, 상세하게 보고서 형태로 정리해줘.")
-pass
+    # region    '개발 및 시연을 위해 최상단 1개만 가져옴'
+    if len(ret):
+        return ret[0]
+    else:
+        return {}
+    # endregion

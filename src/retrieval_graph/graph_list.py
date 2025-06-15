@@ -30,7 +30,7 @@ from langchain_core.agents import AgentAction
 from retrieval_graph.constants import AREA_CODE
 
 @tool
-def getAPTList(city: str) -> list:
+def getAPTList(city: str) -> dict:
     """
     Get the apartment sales announcements in the city requested by the user.
 
@@ -135,7 +135,10 @@ def getAPTList(city: str) -> list:
 
         ret.append(item)
 
-    return ret
+    if len(ret):
+        return ret[0]
+    else:
+        return {}
 
 tools = [
     Tool(
@@ -178,7 +181,6 @@ def execute_tools(
         for tool in tools:
             if tool.name == tool_call['name']:
                 result = tool.invoke(tool_call['args'])
-                print(f"Tool result: {result}")
                 outputs.append(
                     ToolMessage(
                         content=json.dumps(result),

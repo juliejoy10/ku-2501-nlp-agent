@@ -5,6 +5,7 @@
     "retrieval_graph": "./src/retrieval_graph/graph.py:graph",
     "retrieval_graph_valuation": "./src/retrieval_graph/graph_valuation.py:graph_valuation",
     "retrieval_graph_list": "./src/retrieval_graph/graph_list.py:graph_list",
+    "retrieval_graph_final": "./src/retrieval_graph/graph_final.py:graph_final",
     "calendar_graph": "./src/retrieval_graph/calendar_tools.py:graph_list",
     "report_graph": "./src/retrieval_graph/report_tools.py:graph_list",
     "integrated_graph": "./src/retrieval_graph/integrated_tools.py:integrated_graph"

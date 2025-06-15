@@ -1,8 +1,20 @@
+# region    '기본 라이브러리'
 import os
 from typing import List
 import requests
 import xml.etree.ElementTree as ET
-from langchain.tools import tool
+# endregion
+
+# region    'LangChain 라이브러리'
+from langchain_core.pydantic_v1 import BaseModel, Field
+# endregion
+
+
+class calcAvgPyungPriceInput(BaseModel):
+    months_yyyymm: List[int] = Field(default=[], description="조회할 년월(YYYYmm) 리스트, 모집공고일 기준 최근 3개월 (예: [202401, 202402])")
+    area_code: int           = Field(default=0, description="법정동 코드 (예: 11110)")
+    umd_name: str            = Field(default="", description="읍면동 이름 (예: '신사동')")
+
 
 def fetch_api_data(year_month: int, area_code: int, pageNo: int = 1, numOfRows: int = 1000) -> str:
     base_url = 'http://apis.data.go.kr/1613000/RTMSDataSvcAptTrade'
@@ -57,7 +69,6 @@ def get_all_items_for_month(year_month: int, area_code: int, target_umd: str) ->
 
     return all_prices
 
-@tool
 def calc_avg_pyung_price(months_yyyymm: List[int], area_code: int, umd_name: str) -> dict:
     """
     Name: 평단가 평균 조회
