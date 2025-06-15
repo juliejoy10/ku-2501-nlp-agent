@@ -36,8 +36,10 @@ from retrieval_graph.utils import format_docs, get_message_text, load_chat_model
 from retrieval_graph.constants import AREA_CODE
 from retrieval_graph import prompts
 
+from retrieval_graph.tools_rank import SearchRankQuery, retrieve_appropriate_rank
 from retrieval_graph.tools_apt_list import getAPTListInput, get_apt_list
 from retrieval_graph.tools_api_sale_price import calcAvgPyungPriceInput, calc_avg_pyung_price
+from retrieval_graph.tools_api_perplexity import QueryPerplexityInput, query_perplexity_tool
 from retrieval_graph.report_tools import ApartmentReportInput, create_apartment_report_tool
 from retrieval_graph.calendar_tools import EventInput, create_event_tool
 # endregion
@@ -46,6 +48,12 @@ from retrieval_graph.calendar_tools import EventInput, create_event_tool
 # region    'Tools 정의'
 # Define the function that calls the model
 tools = [
+    StructuredTool.from_function(
+        name        = "retrieve_appropriate_rank",
+        func        = retrieve_appropriate_rank,
+        description = "사용자의 개인정보와 관련된 청약순위(특별공급, 1순위, 2순위) 판단 관련문서 검색하고 가장 적합한 청약 순위를 판단",
+        args_schema = SearchRankQuery
+    ),
     StructuredTool.from_function(
         name        = "get_apt_list",
         func        = get_apt_list,
@@ -57,6 +65,12 @@ tools = [
         func        = calc_avg_pyung_price,
         description = "아파트 분양 단지의 법정동 코드와 읍면동 이름을 활용하여 해당지역 최근 3개월 아파트 실거래가 기준 평단가 평균을 조회합니다.",
         args_schema = calcAvgPyungPriceInput
+    ),
+    StructuredTool.from_function(
+        name        = "query_perplexity_tool",
+        func        = query_perplexity_tool,
+        description = "최근 1년간 부동산 정보를 Perplexity를 통해 검색하고, 도시계획, 인프라 현황을 포함해 가치를 분석합니다.",
+        args_schema = QueryPerplexityInput
     ),
     StructuredTool.from_function(
         name        = "create_apartment_report_tool",

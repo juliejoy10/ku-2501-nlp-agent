@@ -55,7 +55,7 @@ class EventInput(BaseModel):
     end_datetime: str = Field(description="End datetime in ISO8601")
     timezone: str = Field(default="Asia/Seoul", description="Timezone string")
     location: str = Field(default="", description="Event location")
-    description: str = Field(default="", description="event all text")
+    description: str = Field(default="", description="Apartment Report")
     reminders: list = Field(default_factory=list, description="List of reminders")
 
 def create_event_tool(

@@ -13,8 +13,8 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 
 
 class calcAvgPyungPriceInput(BaseModel):
-    area_code: int           = Field(default=0, description="법정동 코드 (예: 11110)")
-    umd_name: str            = Field(default="", description="읍면동 이름 (예: '신사동')")
+    area_code: int = Field(default=0, description="분양단지의 법정동 코드 (예: 11110)")
+    umd_name: str  = Field(default="", description="분양단지의 공급위치 상 읍면동 이름 (예: '서울특별시 송파구 잠실동' → '잠실동')")
 
 
 def fetch_api_data(year_month: int, area_code: int, pageNo: int = 1, numOfRows: int = 1000) -> str:

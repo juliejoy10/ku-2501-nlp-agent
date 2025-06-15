@@ -2,6 +2,7 @@ import json
 import os.path
 
 from pydantic import BaseModel, Field
+from typing import List
 from langchain_core.messages import AIMessage
 from langgraph.graph import StateGraph, END
 from langchain_core.tools import StructuredTool
@@ -42,9 +43,10 @@ class ApartmentReportInput(BaseModel):
     promotion_url: str = Field(default="", description="아파트 홍보 URL")
     announcement_url: str = Field(default="", description="분양공고 URL")
     unit_details: dict = Field(default_factory=dict, description="평형별 공급대상 및 분양가 정보. 각 평형별로 주택형, 면적, 공급세대수, 특별공급 세부정보, 분양가 등을 포함하는 딕셔너리입니다. 이 필드는 반드시 포함되어야 합니다.")
-    price_per_pyeong: str = Field(default="", description="평당가 정보. 입력 데이터의 '평당가' 필드를 이 매개변수로 전달하세요. 각 평형별 평당가를 포함하는 문자열입니다.")
+    price_per_pyeong: str = Field(default="", description="단지 평균 평당가 정보. 입력 데이터의 '단지 평균 평당가' 필드를 이 매개변수로 전달하세요.")
     market_price: str = Field(default="", description="시세 정보. 입력 데이터의 '시세' 필드를 이 매개변수로 전달하세요. 주변 아파트 실거래가 기준 평균 시세 정보를 포함하는 문자열입니다.")
-    subscription_rank: str = Field(default="", description="청약 적정 순위. 입력 데이터의 '청약_적정_순위' 또는 '청약적정순위' 필드를 이 매개변수로 전달하세요. 청약 적정성을 순위로 나타낸 정보입니다.")
+    perplexity_result: str = Field(default="", description="Perplexity 검색 결과 (perplexity_result)")
+    subscription_rank: str = Field(default="", description="청약 적정 순위. 입력 데이터의 '청약_적정_순위' 또는 'appropriate_rank' 필드를 이 매개변수로 전달하세요. 청약 적정성을 순위로 나타낸 정보입니다.")
     config: dict = Field(default_factory=dict, description="설정 정보")
 
 
@@ -74,6 +76,7 @@ def create_apartment_report_tool(
     unit_details: dict = None,
     price_per_pyeong: str = "",
     market_price: str = "",
+    perplexity_result: str = "",
     subscription_rank: str = "",
     config: dict = None) -> str:
     """
@@ -126,13 +129,14 @@ def create_apartment_report_tool(
         unit_details=unit_details,
         price_per_pyeong=price_per_pyeong,
         market_price=market_price,
+        perplexity_result=perplexity_result,
         subscription_rank=subscription_rank,
         promotion_url=promotion_url,
         announcement_url=announcement_url
     )
     
     response = llm.invoke(report_prompt)
-    return response.content
+    return {'apartment_report': response.content}
 
 
 tools = [

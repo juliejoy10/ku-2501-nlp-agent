@@ -146,7 +146,7 @@ def get_apt_list(city: str) -> dict:
             total_cost += int(supply_columns[1].text.strip().replace(',', ''))
             total_size += int(supply_columns[0].text.strip().split('.', 1)[0])
 
-        item['평당가'] = f'{int(total_cost / (total_size / 3.3))} 만원'
+        item['단지 평균 평당가'] = f'{int(total_cost / (total_size / 3.3))} 만원'
         # endregion
 
         ret.append(item)

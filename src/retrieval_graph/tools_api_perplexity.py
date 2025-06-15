@@ -15,7 +15,7 @@ class QueryPerplexityInput(BaseModel):
     # avg_sale_price: int = Field(description="평균 실거래가 평당 가격, 단위 만원 (예: 3500)")
 
 
-def query_perplexity_tool(input: QueryPerplexityInput) -> dict:
+def query_perplexity_tool(query: QueryPerplexityInput) -> dict:
     """
     Name: 부동산 정보 검색 (Perplexity)
     Description: 최근 1년간 부동산 정보를 Perplexity를 통해 검색하고, 도시계획, 인프라 현황을 포함해 가치를 분석합니다.
@@ -76,7 +76,7 @@ def query_perplexity_tool(input: QueryPerplexityInput) -> dict:
             },
             {
                 "role": "user",
-                "content": input.query
+                "content": query
             }
         ],
         "search_after_date_filter": one_year_ago
@@ -114,8 +114,8 @@ def query_perplexity_tool(input: QueryPerplexityInput) -> dict:
         
         return {
             "status": "success", 
-            "result": message,
-            "references": references
+            "perplexity_result": message,
+            "perplexity_references": references
         }
 
     except requests.exceptions.RequestException as e:
