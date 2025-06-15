@@ -198,7 +198,7 @@ def create_basic_report(complex_name, location, total_units, contact, announceme
 📌 리포트 생성일시
 {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
     
-    return report
+    return {'report':report}
 
 
 tools = [
