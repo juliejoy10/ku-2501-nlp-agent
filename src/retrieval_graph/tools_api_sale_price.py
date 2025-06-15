@@ -3,6 +3,8 @@ import os
 from typing import List
 import requests
 import xml.etree.ElementTree as ET
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 # endregion
 
 # region    'LangChain 라이브러리'
@@ -11,7 +13,6 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 
 
 class calcAvgPyungPriceInput(BaseModel):
-    months_yyyymm: List[int] = Field(default=[], description="조회할 년월(YYYYmm) 리스트, 모집공고일 기준 최근 3개월 (예: [202401, 202402])")
     area_code: int           = Field(default=0, description="법정동 코드 (예: 11110)")
     umd_name: str            = Field(default="", description="읍면동 이름 (예: '신사동')")
 
@@ -69,13 +70,12 @@ def get_all_items_for_month(year_month: int, area_code: int, target_umd: str) ->
 
     return all_prices
 
-def calc_avg_pyung_price(months_yyyymm: List[int], area_code: int, umd_name: str) -> dict:
+def calc_avg_pyung_price(area_code: int, umd_name: str) -> dict:
     """
     Name: 평단가 평균 조회
-    Description: 특정 읍면동의 지정된 여러 월에 대한 아파트 실거래가 기준 평단가 평균을 조회합니다.
+    Description: 특정 읍면동의 최근 3개월에 대한 아파트 실거래가 기준 평단가 평균을 조회합니다.
 
     Parameters:
-    - months_yyyymm (List[int], required): 조회할 년월 리스트 (예: [202401, 202402])
     - area_code (int, required): 지역코드 (예: 11110)
     - umd_name (str, required): 읍면동 이름 (예: "신사동")
 
@@ -84,6 +84,9 @@ def calc_avg_pyung_price(months_yyyymm: List[int], area_code: int, umd_name: str
     """
     try:
         all_pyung_prices = []
+
+        now = datetime.now()
+        months_yyyymm = [int((now - relativedelta(months=i)).strftime("%Y%m")) for i in range(3)]
 
         for year_month in months_yyyymm:
             prices = get_all_items_for_month(year_month, area_code, umd_name)
@@ -101,12 +104,10 @@ def calc_avg_pyung_price(months_yyyymm: List[int], area_code: int, umd_name: str
 
 if __name__ == "__main__":
     # 테스트용 파라미터 설정
-    test_months = [202401,202402,202403]
     test_area_code = 11110  # 예: 종로구
     test_umd = "무악동"
 
     result = calc_avg_pyung_price.invoke({
-        "months_yyyymm": test_months,
         "area_code": test_area_code,
         "umd_name": test_umd
     })
