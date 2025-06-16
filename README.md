@@ -17,20 +17,25 @@
   https://github.com/langchain-ai/react-agent  
   https://github.com/langchain-ai/retrieval-agent-template  
 
-- **의존성 설치 (pyproject.toml 기반)**  
+- **의존성 설치**  
   ```bash
-  pip install -e .
+  pip install -r requirements.txt
   ```
 
-- **LangGraph Studio 사용**
+- **LangGraph Studio 실행**
   - 실행: `langgraph dev` 또는 `langgraph dev --allow-blocking`
   - 중지: `Ctrl + C`
 
-
-- **의존성 버전 관리**
-  ```bash
-  pip install pydantic==2.8.2
-  ```
+- **LangGraph Studio 테스트 방법**
+  - 그래프 선택: retrieval_graph_final
+  - user_id dummy값 설정
+  - message 생성 후 요청
+   ```json
+    {
+      "role": "human",
+      "content": "나의 개인정보와 관련된 청약순위 관련 문서를 검색한 후 적합한 청약순위 판단\n- 서울 부동산 청약 단지 목록 확인\n- 청약 단지가 위치한 지역의 평당가 조회\n- 부동산 청약 공고와 해당지역 평당가 정보를 활용한 레포트 작성\n\n나의 개인정보\n- 나이: 만 33세\n- 결혼 여부: 미혼\n- 세대주 여부: 세대주\n- 주택보유: 무주택\n- 과거 주택보유이력: 없음"
+    }
+   ```
 
 - **Graph 추가가 관리**
   ```bash

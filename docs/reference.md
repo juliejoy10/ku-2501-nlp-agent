@@ -31,8 +31,6 @@
 
 ### 2.2. 부동산 가치와 시세 평가를 위한 정보
 
-1. 실거래가 정보  
-   *(URL 미기입 – 필요 시 추가)*
+1. 국토교통부_아파트 매매 실거래가 자료
+   https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15126469
 
-2. 공시지가 정보  
-   *(URL 미기입 – 필요 시 추가)*

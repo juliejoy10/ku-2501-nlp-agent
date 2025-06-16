@@ -1,3 +1,6 @@
+# Custom
+test_codes/
+
 # langgraph generated pickle files
 .langgraph_api/
 

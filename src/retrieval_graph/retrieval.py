@@ -58,7 +58,7 @@ def make_elastic_retriever(
     vstore = ElasticsearchStore(
         **connection_options,  # type: ignore
         es_url=os.environ["ELASTICSEARCH_URL"],
-        index_name="langchain_index",
+        index_name="embedding_policy", #Todo 하드코딩 방식
         embedding=embedding_model,
     )
 

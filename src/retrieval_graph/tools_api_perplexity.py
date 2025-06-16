@@ -130,18 +130,18 @@ def query_perplexity_tool(query: QueryPerplexityInput) -> dict:
 if __name__ == "__main__":
     try:
         # QueryPerplexityInput 객체 생성
-        input_data = QueryPerplexityInput(query="서울시 강서구 방화동 방화5단지")
+        input_data = QueryPerplexityInput(query="서울 영등포구 신길동 서울대방 신혼희망타운")
         
         # API 호출
-        response = query_perplexity_tool(input_data)
+        response = query_perplexity_tool(input_data.query)
         
         if response["status"] == "success":
             print("\n=== 응답 결과 ===")
-            print(response["result"])
+            print(response["perplexity_result"])
             
-            if "references" in response:
+            if "perplexity_references" in response:
                 print("\n=== 참고 정보 ===")
-                for i, ref in enumerate(response["references"], 1):
+                for i, ref in enumerate(response["perplexity_references"], 1):
                     if ref["type"] == "citation":
                         print(f"{i}. [인용] {ref['url']}")
                     else:
