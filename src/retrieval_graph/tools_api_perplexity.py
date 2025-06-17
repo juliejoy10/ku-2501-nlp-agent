@@ -1,7 +1,7 @@
 # region 기본 라이브러리
 import requests
 import json
-from datetime import datetime, timedelta
+import os
 # endregion
 
 # region LangChain 라이브러리
@@ -27,7 +27,7 @@ def query_perplexity_tool(query: QueryPerplexityInput) -> dict:
     - dict: {'status': 'success', 'result': str} 또는 {'status': 'error', 'message': str}
     """
     url = "https://api.perplexity.ai/chat/completions"
-    api_key = "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"  # 환경변수로 바꾸는 게 좋습니다
+    api_key = os.environ["PERPLEXITY_API_KEY"]
 
     one_year_ago = (datetime.now() - timedelta(days=365)).strftime("%m/%d/%Y")
     headers = {
